@@ -63,7 +63,19 @@ st.markdown("""
         border-radius: 12px !important; font-weight: 700 !important; border: none !important;
         width: 100%; padding: 12px !important; transition: 0.2s;
     }
-    .stButton > button:hover { transform: scale(1.02); box-shadow: 0 0 15px rgba(59,130,246,0.5); }
+    
+    /* Custom Audio Player CSS */
+    audio {
+        width: 100%; height: 40px; border-radius: 8px; outline: none; margin-top: 10px;
+        background-color: #1a1d24; 
+    }
+    audio::-webkit-media-controls-panel {
+        background-color: #1a1d24;
+    }
+    audio::-webkit-media-controls-current-time-display,
+    audio::-webkit-media-controls-time-remaining-display {
+        color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -133,12 +145,19 @@ else:
             title = song.get("name", "Unknown")
             s_era = song.get("era", {}).get("name", "Unknown").upper()
             leak_type = song.get("leak_type", "Unknown").lower()
+            path = song.get("path", "")
             
             badge_class = "badge"
             if "unreleased" in leak_type: badge_class += " badge-unreleased"
             elif "released" in leak_type: badge_class += " badge-released"
             elif "unsurfaced" in leak_type: badge_class += " badge-unsurfaced"
             elif "session" in leak_type: badge_class += " badge-session"
+            
+            # Build the Audio URL
+            audio_url = f"https://juicewrldapi.com/juicewrld/files/download-compressed/?path={path}" if path else ""
+            
+            # We inject the audio player directly into the HTML card to bypass Streamlit's restrictions
+            audio_html = f'<audio controls preload="none"><source src="{audio_url}" type="audio/mpeg"></audio>' if audio_url else '<p style="color:red;font-size:12px;">No audio available</p>'
             
             html_card = f"""
             <div class="song-card">
@@ -149,6 +168,7 @@ else:
                 <div class="song-content">
                     <div class="song-title">{title}</div>
                     <div class="song-meta">💿 {s_era}</div>
+                    {audio_html}
                 </div>
             </div>
             """
