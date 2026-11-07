@@ -6,83 +6,139 @@
     <title>Juice WRLD Vault</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #0f1115; color: white; font-family: 'Inter', sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { background-color: #0d0f12; color: white; font-family: 'Inter', sans-serif; }
         .card { background-color: #1a1d24; border: 1px solid #2a2e39; border-radius: 12px; }
-        .badge { background-color: #f59e0b; color: black; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+        .live-dot { height: 8px; width: 8px; background-color: #10b981; border-radius: 50%; display: inline-block; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0d0f12; }
+        ::-webkit-scrollbar-thumb { background: #2a2e39; border-radius: 4px; }
     </style>
 </head>
-<body class="p-6">
+<body class="p-6 pb-24">
 
-    <!-- Top Bar: Song of the Hour -->
-    <div class="card p-4 flex justify-between items-center mb-6">
-        <div>
-            <h2 class="text-xl font-bold">Song of the hour</h2>
-            <p class="text-gray-400">Fast <span class="text-xs text-blue-400">DRFL</span> <span class="badge">Released</span></p>
-        </div>
-        <div class="text-right">
-            <p class="text-sm text-gray-500">Next in 00:43</p>
+    <div class="max-w-7xl mx-auto flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+        <h1 class="text-2xl font-extrabold flex items-center gap-2">🕊️ Juice WRLD Vault</h1>
+        <div class="flex gap-4 text-sm text-gray-400 font-semibold">
+            <span>SONGS: 3,137</span>
+            <span class="flex items-center gap-2"><span class="live-dot"></span> 37 Online</span>
         </div>
     </div>
 
-    <!-- Main Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        <!-- Left Column (Latest) -->
-        <div class="col-span-2 space-y-6">
-            <div class="card p-4">
-                <h3 class="text-lg font-bold mb-4">Latest</h3>
-                <div id="latest-list" class="space-y-4">
-                    <!-- Songs will be injected here by JS -->
+    <div class="max-w-7xl mx-auto mb-6">
+        <input type="text" id="search-bar" placeholder="Search songs..." class="w-full bg-[#1a1d24] border border-gray-700 text-white p-3 rounded-lg focus:outline-none focus:border-blue-500 transition-colors">
+    </div>
+
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="md:col-span-2 space-y-6">
+            <div class="card p-6">
+                <h2 class="text-xl font-bold mb-6">Latest</h2>
+                <div id="song-list" class="space-y-2">
+                    <p class="text-gray-500">Loading songs...</p>
                 </div>
             </div>
         </div>
 
-        <!-- Right Column (Top 5 / Live) -->
         <div class="space-y-6">
-            <div class="card p-4">
-                <h3 class="text-lg font-bold mb-4">Top 5 this week</h3>
-                <!-- List goes here -->
-            </div>
-            <div class="card p-4">
-                <h3 class="text-lg font-bold mb-4">Live now</h3>
-                <p class="text-green-400">11 people listening right now</p>
+            <div class="card p-6 bg-gradient-to-br from-blue-900/20 to-transparent border-blue-900/50">
+                <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Song of the hour</h3>
+                <h2 id="soth-title" class="text-2xl font-extrabold mb-1">Loading...</h2>
+                <p id="soth-info" class="text-sm text-gray-400">Fetching data...</p>
             </div>
         </div>
+    </div>
 
+    <div id="player-container" class="fixed bottom-0 left-0 w-full bg-[#1a1d24] border-t border-gray-700 p-4 shadow-2xl transform translate-y-full transition-transform duration-300">
+        <div class="max-w-7xl mx-auto flex items-center gap-4">
+            <img id="player-cover" src="" class="w-12 h-12 rounded object-cover">
+            <div class="flex-1">
+                <p id="player-title" class="font-bold text-white text-sm">Not Playing</p>
+                <p id="player-era" class="text-xs text-gray-400"></p>
+            </div>
+            <audio id="audio-player" controls class="h-10"></audio>
+            <button onclick="closePlayer()" class="text-gray-400 hover:text-white px-2">✕</button>
+        </div>
     </div>
 
     <script>
-        // Fetch from YOUR API on Render
-        const API_URL = "https://your-api.onrender.com/latest";
+        let allSongs = []; 
 
-        async function loadLatestSongs() {
+        // 1. Load Songs from YOUR API
+        async function loadSongs() {
             try {
-                const response = await fetch(API_URL);
+                const response = await fetch(`/api/latest`);
                 const data = await response.json();
-                
-                const container = document.getElementById('latest-list');
-                container.innerHTML = ''; // Clear loading text
-
-                data.songs.forEach(song => {
-                    // Create a song card for each item
-                    const songHTML = `
-                        <div class="flex items-center gap-4 border-b border-gray-700 pb-2">
-                            <img src="${song.cover}" class="w-12 h-12 rounded">
-                            <div>
-                                <p class="font-bold">${song.title}</p>
-                                <p class="text-sm text-gray-400">${song.era} • ${song.length}</p>
-                            </div>
-                        </div>
-                    `;
-                    container.innerHTML += songHTML;
-                });
+                allSongs = data.songs;
+                renderSongs(allSongs);
             } catch (e) {
-                console.error("Error fetching songs:", e);
+                document.getElementById('song-list').innerHTML = "<p class='text-red-500'>Failed to load songs.</p>";
             }
         }
 
-        // Run when page loads
-        loadLatestSongs();
+        // 2. Render Songs
+        function renderSongs(songs) {
+            const container = document.getElementById('song-list');
+            container.innerHTML = ''; 
+
+            songs.forEach(song => {
+                let img = song.image_url ? `https://juicewrldapi.com${song.image_url}` : "https://juicewrldapi.com/default.png";
+                let badgeColor = "bg-orange-500 text-black"; 
+                if (song.leak_type === "Released") badgeColor = "bg-green-500 text-black";
+                if (song.leak_type === "Unsurfaced") badgeColor = "bg-blue-500 text-white";
+
+                const row = `
+                    <div onclick="playSong('${song.name}', '${song.era.name}', '${song.path}', '${img}')" class="flex items-center gap-4 p-3 hover:bg-white/5 rounded-lg transition-colors cursor-pointer group border-b border-gray-800/50">
+                        <img src="${img}" class="w-12 h-12 rounded object-cover">
+                        <div class="flex-1">
+                            <p class="font-bold text-white group-hover:text-blue-400 transition-colors">${song.name}</p>
+                            <p class="text-xs text-gray-500">${song.era.name} • ${song.length}</p>
+                        </div>
+                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${badgeColor}">${song.leak_type || 'Unknown'}</span>
+                    </div>
+                `;
+                container.innerHTML += row;
+            });
+        }
+
+        // 3. Play Song
+        function playSong(title, era, path, cover) {
+            const playerContainer = document.getElementById('player-container');
+            const audio = document.getElementById('audio-player');
+            
+            document.getElementById('player-title').innerText = title;
+            document.getElementById('player-era').innerText = era;
+            document.getElementById('player-cover').src = cover;
+            
+            audio.src = `https://juicewrldapi.com/juicewrld/files/download-compressed/?path=${path}`;
+            
+            playerContainer.classList.remove('translate-y-full');
+            audio.play();
+        }
+
+        function closePlayer() {
+            document.getElementById('audio-player').pause();
+            document.getElementById('player-container').classList.add('translate-y-full');
+        }
+
+        // 4. Search
+        document.getElementById('search-bar').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = allSongs.filter(song => song.name.toLowerCase().includes(query));
+            renderSongs(filtered);
+        });
+
+        // 5. Song of the Hour
+        async function loadSongOfTheHour() {
+            try {
+                const res = await fetch(`/api/random`);
+                const data = await res.json();
+                document.getElementById('soth-title').innerText = data.song.name;
+                document.getElementById('soth-info').innerText = `${data.song.era.name} • ${data.song.length}`;
+            } catch (e) {}
+        }
+
+        loadSongs();
+        loadSongOfTheHour();
     </script>
 </body>
 </html>
