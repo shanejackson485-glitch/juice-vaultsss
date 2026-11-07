@@ -1,72 +1,88 @@
 import streamlit as st
 import requests
+import streamlit.components.v1 as components
 
-# Set page config
-st.set_page_config(page_title="Juice WRLD Vault", page_icon="🕊️", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Juice WRLD Vault", page_icon="🕊️", layout="wide", initial_sidebar_state="collapsed")
 
-# --- CUSTOM CSS ---
+# --- CUSTOM CSS & FONTS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
     
+    /* Base Styling */
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-    .stApp { background-color: #0d0f12; color: #e0e0e0; }
+    .stApp { background: linear-gradient(135deg, #090a0f 0%, #15171e 100%); color: #e0e0e0; }
     
-    /* Hide Streamlit Headers */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Top Navigation Bar */
-    .top-bar {
+    /* Hide Streamlit Junk */
+    #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
+    .block-container { padding-top: 2rem; padding-bottom: 120px; }
+
+    /* Top Nav Bar */
+    .nav-bar {
         display: flex; justify-content: space-between; align-items: center;
-        background-color: #1a1d24; padding: 15px 30px; border-radius: 12px;
-        margin-bottom: 25px; border: 1px solid #2a2e39;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        background: rgba(26, 29, 36, 0.7); backdrop-filter: blur(10px);
+        padding: 15px 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05);
+        margin-bottom: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     }
-    .top-bar-title h1 { color: white; font-size: 24px; margin: 0; font-weight: 800; }
+    .nav-title { color: white; font-size: 24px; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 10px; }
     
-    /* Sidebar */
-    [data-testid="stSidebar"] { background-color: #12141a; border-right: 1px solid #2a2e39; }
-    [data-testid="stSidebar"] h2 { color: white; font-size: 16px; text-transform: uppercase; }
-    
-    /* Inputs */
-    div[data-baseweb="select"] > div, .stTextInput > div > div > input {
-        background-color: #1a1d24 !important; border: 1px solid #3b404d !important;
-        color: white !important; border-radius: 8px !important;
+    /* Hero Banner */
+    .hero {
+        background: linear-gradient(90deg, rgba(59,130,246,0.15) 0%, rgba(0,0,0,0) 100%);
+        border: 1px solid rgba(59,130,246,0.3); border-radius: 20px;
+        padding: 40px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center;
     }
-    
+    .hero-title { font-size: 36px; font-weight: 800; color: white; margin: 0; }
+    .hero-subtitle { color: #9ca3af; font-size: 16px; margin-top: 5px; }
+
+    /* Category Pills */
+    .pill-container { display: flex; gap: 10px; margin-bottom: 20px; }
+    .pill {
+        padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;
+        border: 1px solid #2a2e39; color: #9ca3af; cursor: pointer; transition: 0.2s;
+    }
+    .pill:hover { background: #1a1d24; color: white; }
+    .pill-active { background: #3b82f6; color: white; border-color: #3b82f6; }
+
     /* Song Cards */
     .song-card {
-        background-color: #1a1d24; border-radius: 12px; border: 1px solid #2a2e39;
-        overflow: hidden; transition: all 0.3s ease; position: relative; margin-bottom: 15px;
+        background: #15171e; border-radius: 16px; border: 1px solid #2a2e39;
+        overflow: hidden; transition: all 0.3s ease; position: relative; margin-bottom: 20px;
     }
-    .song-card:hover { transform: translateY(-5px); border-color: #3b82f6; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-    .song-image { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-bottom: 1px solid #2a2e39; }
-    .song-content { padding: 15px; }
-    .song-title { color: white; font-size: 18px; font-weight: 800; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .song-meta { color: #9ca3af; font-size: 13px; margin-bottom: 4px; }
+    .song-card:hover { transform: translateY(-8px); border-color: #3b82f6; box-shadow: 0 15px 30px rgba(59,130,246,0.15); }
+    .song-image { width: 100%; aspect-ratio: 1/1; object-fit: cover; transition: 0.3s; }
+    .song-card:hover .song-image { transform: scale(1.05); }
+    .song-content { padding: 20px; }
+    .song-title { color: white; font-size: 20px; font-weight: 800; margin-bottom: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .song-meta { color: #9ca3af; font-size: 13px; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
     
-    /* Category Badges */
-    .badge { position: absolute; top: 10px; right: 10px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; color: black; text-transform: uppercase; }
-    .badge-unreleased { background-color: #f59e0b; }
-    .badge-released { background-color: #10b981; }
-    .badge-unsurfaced { background-color: #3b82f6; color: white;}
-    .badge-session { background-color: #8b5cf6; color: white;}
-    
-    /* Audio Player */
-    audio { width: 100%; margin-top: 10px; height: 35px; border-radius: 8px; }
+    /* Badges */
+    .badge { position: absolute; top: 15px; right: 15px; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; color: black; text-transform: uppercase; letter-spacing: 0.5px; backdrop-filter: blur(5px); }
+    .badge-unreleased { background-color: rgba(245, 158, 11, 0.9); }
+    .badge-released { background-color: rgba(16, 185, 129, 0.9); }
+    .badge-unsurfaced { background-color: rgba(59, 130, 246, 0.9); color: white;}
+    .badge-session { background-color: rgba(139, 92, 246, 0.9); color: white;}
+
+    /* Inputs */
+    .stTextInput > div > div > input {
+        background: rgba(26, 29, 36, 0.8) !important; border: 1px solid #3b404d !important;
+        color: white !important; border-radius: 12px !important; padding: 12px 20px !important;
+    }
+    .stButton > button {
+        background: linear-gradient(90deg, #3b82f6, #2563eb) !important; color: white !important;
+        border-radius: 12px !important; font-weight: 700 !important; border: none !important;
+        width: 100%; padding: 12px !important; transition: 0.2s;
+    }
+    .stButton > button:hover { transform: scale(1.02); box-shadow: 0 0 15px rgba(59,130,246,0.5); }
 </style>
 """, unsafe_allow_html=True)
 
 # --- API SETUP ---
-# USING THE PUBLIC API SO IT WORKS RIGHT NOW.
-# If you get Render working, change this to your Render URL (e.g., "https://juice-api.onrender.com")
 API_URL = "https://juicewrldapi.com"
 
 @st.cache_data(ttl=300)
-def fetch_songs(query="", category="", limit=24):
-    params = {"limit": limit}
+def fetch_songs(query="", category=""):
+    params = {"limit": 24}
     if query: params["search"] = query
     if category and category != "All": params["category"] = category
     
@@ -88,73 +104,104 @@ def fetch_random():
         pass
     return {}
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.image("https://juicewrldapi.com/logo.png", width=80)
-    st.markdown("## Filters")
-    query = st.text_input("Search Vault", placeholder="e.g. Lucid Dreams")
-    st.markdown("---")
-    category = st.selectbox("Category", ["All", "Unreleased", "Released", "Recording Session", "Unsurfaced"])
-    st.markdown("---")
-    if st.button("Refresh Database", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-
-# --- TOP BAR ---
+# --- TOP NAV ---
 st.markdown("""
-<div class="top-bar">
-    <div class="top-bar-title"><h1>The Juice WRLD API</h1></div>
+<div class="nav-bar">
+    <div class="nav-title">🕊️ Juice WRLD Vault</div>
+    <div style="color: #9ca3af; font-size: 14px; font-weight: 600;">
+        SONGS: 3,137 &nbsp; | &nbsp; ERAS: 11 &nbsp; | &nbsp; 🟢 37 Online
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- MAIN GRID ---
-col_left, col_right = st.columns([2, 1])
+# --- HERO SECTION (Song of the Hour) ---
+random_song = fetch_random()
+if random_song:
+    st.markdown(f"""
+    <div class="hero">
+        <div>
+            <div style="color: #3b82f6; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px;">Song of the Hour</div>
+            <h1 class="hero-title">{random_song.get('name', 'Unknown')}</h1>
+            <p class="hero-subtitle">{random_song.get('era', {}).get('name', 'Unknown')} • {random_song.get('length', '')}</p>
+        </div>
+        <div style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(45deg, #3b82f6, #8b5cf6); display: flex; justify-content: center; align-items: center; box-shadow: 0 0 30px rgba(59,130,246,0.5);">
+            <span style="font-size: 40px;">▶</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-with col_left:
-    songs = fetch_songs(query, category)
-    if not songs:
-        st.error("No songs found.")
-    else:
-        cols = st.columns(2)
-        for idx, song in enumerate(songs):
-            with cols[idx % 2]:
-                img = song.get("image_url", "")
-                img_url = f"https://juicewrldapi.com{img}" if img.startswith("/") else "https://juicewrldapi.com/default.png"
-                title = song.get("name", "Unknown")
-                s_era = song.get("era", {}).get("name", "Unknown").upper()
-                length = song.get("length", "")
-                leak_type = song.get("leak_type", "Unknown").lower()
-                path = song.get("path", "")
-                
-                badge_class = "badge"
-                if "unreleased" in leak_type: badge_class += " badge-unreleased"
-                elif "released" in leak_type: badge_class += " badge-released"
-                elif "unsurfaced" in leak_type: badge_class += " badge-unsurfaced"
-                elif "session" in leak_type: badge_class += " badge-session"
-                
-                html_card = f"""
-                <div class="song-card">
-                    <div style="position: relative;">
-                        <span class="{badge_class}">{leak_type}</span>
-                        <img src="{img_url}" class="song-image">
-                    </div>
-                    <div class="song-content">
-                        <div class="song-title" title="{title}">{title}</div>
-                        <div class="song-meta">🕒 Era: <span style="color: #3b82f6; font-weight: 600;">{s_era}</span></div>
-                        <div class="song-meta">⏱️ {length}</div>
-                    </div>
+# --- SEARCH & FILTERS ---
+col1, col2 = st.columns([3, 1])
+with col1:
+    query = st.text_input("", placeholder="Search the vault...", label_visibility="collapsed")
+with col2:
+    if st.button("Search"):
+        st.cache_data.clear()
+
+# Category Pills
+st.markdown("""
+<div class="pill-container">
+    <div class="pill pill-active">All</div>
+    <div class="pill">Unreleased</div>
+    <div class="pill">Released</div>
+    <div class="pill">Unsurfaced</div>
+    <div class="pill">Sessions</div>
+</div>
+""", unsafe_allow_html=True)
+
+# --- SONG GRID ---
+songs = fetch_songs(query)
+if not songs:
+    st.error("No songs found.")
+else:
+    cols = st.columns(4)
+    for idx, song in enumerate(songs):
+        with cols[idx % 4]:
+            img = song.get("image_url", "")
+            img_url = f"https://juicewrldapi.com{img}" if img.startswith("/") else "https://juicewrldapi.com/default.png"
+            title = song.get("name", "Unknown")
+            s_era = song.get("era", {}).get("name", "Unknown").upper()
+            leak_type = song.get("leak_type", "Unknown").lower()
+            
+            badge_class = "badge"
+            if "unreleased" in leak_type: badge_class += " badge-unreleased"
+            elif "released" in leak_type: badge_class += " badge-released"
+            elif "unsurfaced" in leak_type: badge_class += " badge-unsurfaced"
+            elif "session" in leak_type: badge_class += " badge-session"
+            
+            html_card = f"""
+            <div class="song-card">
+                <div style="position: relative;">
+                    <span class="{badge_class}">{leak_type}</span>
+                    <img src="{img_url}" class="song-image">
                 </div>
-                """
-                st.markdown(html_card, unsafe_allow_html=True)
-                
-                if path:
-                    stream_url = f"https://juicewrldapi.com/juicewrld/files/download-compressed/?path={path}"
-                    st.audio(stream_url, format="audio/mp3")
-                st.markdown("<br>", unsafe_allow_html=True)
+                <div class="song-content">
+                    <div class="song-title">{title}</div>
+                    <div class="song-meta">💿 {s_era}</div>
+                </div>
+            </div>
+            """
+            st.markdown(html_card, unsafe_allow_html=True)
 
-with col_right:
-    st.markdown("### Song of the Hour")
-    random_song = fetch_random()
-    if random_song:
-        st.markdown(f"**{random_song.get('name', 'Unknown')}**")
-        st.caption(f"{random_song.get('era', {}).get('name', 'Unknown')} • {random_song.get('length', '')}")
+# --- FIXED BOTTOM PLAYER (Using HTML/JS for persistence) ---
+components.html(
+    """
+    <style>
+        body { margin: 0; background: transparent; }
+        .player-bar {
+            position: fixed; bottom: 0; left: 0; width: 100vw; height: 80px;
+            background: rgba(21, 23, 30, 0.95); backdrop-filter: blur(10px);
+            border-top: 1px solid #2a2e39; display: flex; align-items: center;
+            padding: 0 30px; box-sizing: border-box; z-index: 9999;
+        }
+        .player-text { color: #9ca3af; font-size: 14px; font-family: sans-serif; }
+    </style>
+    <div class="player-bar">
+        <div style="display: flex; align-items: center; gap: 20px; width: 100%;">
+            <div style="color: white; font-weight: bold; font-family: sans-serif;">Now Playing:</div>
+            <div class="player-text">Click a song to play (Audio integration coming soon)</div>
+        </div>
+    </div>
+    """,
+    height=80,
+)
