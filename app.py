@@ -1,76 +1,75 @@
 import os
-import random
 import html
+import random
 import requests
 import streamlit as st
-
+from urllib.parse import urlencode
 from dotenv import load_dotenv
-
 load_dotenv()
-
 # ============================================================
-# CONFIGURATION
+# CONFIG
 # ============================================================
-
 st.set_page_config(
     page_title="Juice WRLD Vault",
     page_icon="🕊️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-API = os.getenv(
-    "VAULT_API_URL",
+CATALOG_API = os.getenv(
+    "CATALOG_API_URL",
     "https://juicewrld.io/api/v1"
 ).rstrip("/")
-
+MEDIA_API = os.getenv(
+    "MEDIA_API_URL",
+    "https://juicewrldapi.com/juicewrld"
+).rstrip("/")
 API_KEY = os.getenv("VAULT_API_KEY")
-
 HEADERS = {}
 if API_KEY:
     HEADERS["X-API-Key"] = API_KEY
-
-
 # ============================================================
 # STYLING
 # ============================================================
-
 st.markdown("""
 <style>
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
+@import url(
+'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
+);
 html, body, [class*="css"] {
     font-family: Inter, sans-serif;
 }
-
 .stApp {
     background:
-        radial-gradient(circle at top right, #172b4c 0%, transparent 35%),
-        linear-gradient(135deg, #080a10, #111722 55%, #090b11);
+        radial-gradient(
+            circle at 80% 0%,
+            rgba(37,99,235,.13),
+            transparent 35%
+        ),
+        linear-gradient(
+            135deg,
+            #080a10,
+            #111722 55%,
+            #090b11
+        );
     color: #e8edf7;
 }
-
 #MainMenu, footer, header {
     visibility: hidden;
 }
-
 .block-container {
-    padding-top: 1.5rem;
-    max-width: 1500px;
+    padding-top: 1.3rem;
+    padding-bottom: 130px;
+    max-width: 1550px;
 }
-
 .brand {
     font-size: 29px;
     font-weight: 800;
     color: white;
     letter-spacing: -1.2px;
 }
-
 .muted {
     color: #91a0b5;
 }
-
 .hero {
     padding: 38px;
     border: 1px solid #26364e;
@@ -78,282 +77,351 @@ html, body, [class*="css"] {
     background:
         linear-gradient(
             110deg,
-            rgba(37,99,235,.25),
-            rgba(15,23,42,.65)
+            rgba(37,99,235,.24),
+            rgba(15,23,42,.55)
         );
-    margin: 18px 0 25px;
+    margin: 20px 0 25px;
 }
-
 .hero h1 {
     font-size: 42px;
     color: white;
     font-weight: 800;
     margin: 8px 0;
 }
-
 .card {
     background: #121925;
     border: 1px solid #263244;
-    border-radius: 15px;
+    border-radius: 16px;
     padding: 16px;
     margin-bottom: 12px;
 }
-
 div[data-testid="stMetric"] {
     background: #121925;
     border: 1px solid #263244;
-    padding: 16px;
+    padding: 15px;
     border-radius: 14px;
 }
-
 .stButton > button {
     border-radius: 10px;
     border: 1px solid #334155;
     background: #17263d;
     color: white;
-    transition: .2s;
 }
-
 .stButton > button:hover {
     border-color: #3b82f6;
     color: white;
 }
-
 section[data-testid="stSidebar"] {
     background: #0b1019;
     border-right: 1px solid #202b3d;
 }
-
 a {
     color: #60a5fa !important;
 }
-
 div[data-testid="stImage"] img {
     border-radius: 12px;
 }
-
 </style>
 """, unsafe_allow_html=True)
-
-
 # ============================================================
-# API HELPERS
+# REQUEST HELPERS
 # ============================================================
-
-@st.cache_data(ttl=300, show_spinner=False)
-def api_get(path, params=None):
-
-    url = f"{API}/{path.lstrip('/')}"
-
-    response = requests.get(
-        url,
-        params=params,
-        headers=HEADERS,
-        timeout=20
-    )
-
-    response.raise_for_status()
-
-    return response.json()
-
-
-def unwrap(response):
-
-    if isinstance(response, dict):
-        return response.get("data", response)
-
-    return response
-
-
-def get_data(path, params=None):
-
+def request_json(url, params=None):
     try:
-        return unwrap(api_get(path, params))
-
+        response = requests.get(
+            url,
+            params=params,
+            headers=HEADERS,
+            timeout=25
+        )
+        response.raise_for_status()
+        return response.json()
     except requests.exceptions.HTTPError as error:
-
-        status = error.response.status_code if error.response else "Unknown"
-
-        st.error(
-            f"API returned HTTP {status}. "
-            "Check the requested endpoint or parameters."
+        status = (
+            error.response.status_code
+            if error.response is not None
+            else "Unknown"
         )
-
+        st.error(f"HTTP error: {status}")
     except requests.exceptions.ConnectionError:
-
-        st.error(
-            "Could not connect to the Juice WRLD catalogue API."
-        )
-
+        st.error("Could not connect to the API.")
     except requests.exceptions.Timeout:
-
         st.error("The API request timed out.")
-
+    except ValueError:
+        st.error("The API returned invalid JSON.")
     except Exception as error:
-
-        st.error(f"Unexpected API error: {error}")
-
+        st.error(f"Request error: {error}")
     return None
-
-
-def safe_text(value, fallback="Unknown"):
-
+@st.cache_data(ttl=180, show_spinner=False)
+def catalog_get(path, params=None):
+    return request_json(
+        f"{CATALOG_API}/{path.lstrip('/')}",
+        params
+    )
+def media_get(path, params=None):
+    return request_json(
+        f"{MEDIA_API}/{path.lstrip('/')}",
+        params
+    )
+def unwrap(value):
+    if isinstance(value, dict):
+        return value.get("data", value)
+    return value
+def as_list(value):
+    value = unwrap(value)
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        for key in [
+            "results",
+            "items",
+            "files",
+            "songs",
+            "data"
+        ]:
+            if isinstance(value.get(key), list):
+                return value[key]
+    return []
+def safe(value, fallback="Unknown"):
     if value is None or value == "":
         return fallback
-
     return str(value)
-
-
-def open_link(url):
-
-    if url and isinstance(url, str):
-        st.link_button("Open on Juice WRLD", url)
-
-
-def show_cover(url, width=180):
-
+def cover(item):
+    return (
+        item.get("cover")
+        or item.get("cover_url")
+        or item.get("image")
+        or item.get("image_url")
+    )
+def show_cover(url, width=140):
     if url:
         try:
             st.image(url, width=width)
         except Exception:
             st.caption("Artwork unavailable.")
-
-
-def show_song(song):
-
-    title = safe_text(song.get("title"))
-    status = safe_text(song.get("status"), "unknown").upper()
-    era = safe_text(song.get("era"), "Unknown era")
-    duration = song.get("duration") or {}
-    duration_text = duration.get("text", "Unknown length")
-
-    with st.container(border=True):
-
-        left, right = st.columns([1, 5])
-
-        with left:
-            show_cover(song.get("cover"), 110)
-
-        with right:
-
-            st.markdown(f"### {title}")
-
-            st.caption(
-                f"{status} · {era} · {duration_text}"
+# ============================================================
+# MEDIA URLS
+# ============================================================
+def media_download_url(path, compressed=True):
+    endpoint = (
+        "files/download-compressed/"
+        if compressed
+        else "files/download/"
+    )
+    return (
+        f"{MEDIA_API}/{endpoint}"
+        f"?{urlencode({'path': path, 'channel': 'comp')}"
+    )
+def media_browse(path=""):
+    return media_get(
+        "files/browse/",
+        {
+            "path": path,
+            "channel": "comp"
+        }
+    )
+def get_file_path(item):
+    return (
+        item.get("path")
+        or item.get("full_path")
+        or item.get("download_path")
+        or ""
+    )
+def get_file_name(item):
+    return (
+        item.get("name")
+        or item.get("filename")
+        or item.get("title")
+        or "Unknown file"
+    )
+def is_directory(item):
+    return (
+        item.get("is_directory") is True
+        or item.get("is_dir") is True
+        or item.get("type") in [
+            "folder",
+            "directory"
+        ]
+    )
+# ============================================================
+# SESSION STATE
+# ============================================================
+DEFAULT_STATE = {
+    "current_track": None,
+    "queue": [],
+    "recently_played": [],
+    "shuffle": False,
+    "repeat": False,
+    "browse_path": "",
+    "selected_song": None,
+    "radio_track": None
+}
+for key, value in DEFAULT_STATE.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+# ============================================================
+# PLAYER
+# ============================================================
+def play_track(track):
+    path = get_file_path(track)
+    if not path:
+        st.warning("This file has no playable path.")
+        return
+    st.session_state.current_track = track
+    recent = st.session_state.recently_played
+    recent.insert(0, track)
+    st.session_state.recently_played = recent[:20]
+def player():
+    track = st.session_state.current_track
+    if not track:
+        return
+    name = get_file_name(track)
+    path = get_file_path(track)
+    st.divider()
+    st.markdown("### 🎧 NOW PLAYING")
+    left, middle, right = st.columns([1, 4, 1])
+    with left:
+        show_cover(cover(track), 75)
+    with middle:
+        st.markdown(f"**{name}**")
+        st.caption("JUICE WRLD VAULT PLAYER")
+    with right:
+        if st.button("✕", key="close_player"):
+            st.session_state.current_track = None
+            st.rerun()
+    if path:
+        st.audio(
+            media_download_url(path),
+            format="audio/mpeg"
+        )
+        st.download_button(
+            "⬇ Download file",
+            data=requests.get(
+                media_download_url(path, compressed=False),
+                timeout=30
+            ).content,
+            file_name=os.path.basename(path),
+            mime="application/octet-stream",
+            key="download_current"
+        )
+    controls = st.columns(3)
+    with controls[0]:
+        if st.button(
+            "🔀 Shuffle",
+            key="player_shuffle"
+        ):
+            st.session_state.shuffle = (
+                not st.session_state.shuffle
             )
-
-            if song.get("versionLabel"):
-                st.caption(song["versionLabel"])
-
+    with controls[1]:
+        if st.button(
+            "🔁 Repeat",
+            key="player_repeat"
+        ):
+            st.session_state.repeat = (
+                not st.session_state.repeat
+            )
+    with controls[2]:
+        st.caption(
+            f"Queue: {len(st.session_state.queue)}"
+        )
+# ============================================================
+# SONG CARDS
+# ============================================================
+def song_card(song):
+    title = safe(
+        song.get("title")
+        or song.get("name")
+    )
+    with st.container(border=True):
+        left, right = st.columns([1, 4])
+        with left:
+            show_cover(cover(song), 115)
+        with right:
+            st.markdown(f"### {title}")
+            st.caption(
+                f"{safe(song.get('status')).upper()} "
+                f"· {safe(song.get('era'))}"
+            )
+            duration = song.get("duration") or {}
+            if isinstance(duration, dict):
+                duration = duration.get("text", "")
+            st.caption(
+                f"Duration: {safe(duration)}"
+            )
             if song.get("url"):
                 st.link_button(
-                    "View song page ↗",
+                    "Open song ↗",
                     song["url"]
                 )
-
-            if song.get("hasAudio"):
-                st.caption("🎧 Audio available on the catalogue website.")
-
-
-def show_song_details(song_id):
-
-    song = get_data(f"/songs/{song_id}")
-
-    if not isinstance(song, dict):
-        st.warning("Song details could not be loaded.")
-        return
-
-    st.divider()
-
-    st.subheader("Song information")
-
-    left, right = st.columns([1, 3])
-
-    with left:
-        show_cover(song.get("cover"), 220)
-
-    with right:
-
-        st.title(song.get("title", "Unknown"))
-
-        st.caption(
-            f"{safe_text(song.get('status')).upper()} "
-            f"· {safe_text(song.get('eraName'))}"
-        )
-
-        if song.get("url"):
-            open_link(song["url"])
-
-        st.write(
-            f"**Duration:** "
-            f"{(song.get('duration') or {}).get('text', 'Unknown')}"
-        )
-
-        st.write(f"**BPM:** {safe_text(song.get('bpm'))}")
-        st.write(f"**Key:** {safe_text(song.get('key'))}")
-        st.write(f"**Location:** {safe_text(song.get('location'))}")
-
-    dates = song.get("dates") or {}
-
-    st.subheader("Dates")
-
-    a, b, c, d = st.columns(4)
-
-    for column, label in zip(
-        [a, b, c, d],
-        ["Recorded", "Previewed", "Released", "Surfaced"]
-    ):
-
-        date = dates.get(label.lower()) or {}
-
-        column.metric(
-            label,
-            date.get("text", "Unknown")
-        )
-
-    credits = song.get("credits") or {}
-
-    st.subheader("Credits")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        st.markdown("**Producers**")
-
-        for person in credits.get("producers", []):
-            st.write(f"• {person.get('name', 'Unknown')}")
-
-    with col2:
-
-        st.markdown("**Engineers**")
-
-        for person in credits.get("engineers", []):
-            st.write(f"• {person.get('name', 'Unknown')}")
-
-    notes = song.get("notes") or []
-
-    if notes:
-
-        st.subheader("Notes")
-
-        for note in notes:
-            st.write(f"• {note}")
-
-    versions = song.get("versions") or []
-
-    if versions:
-
-        st.subheader("Versions")
-
-        for version in versions:
-            show_song(version)
-
-
+            if song.get("id"):
+                if st.button(
+                    "Song details",
+                    key=f"detail_{song['id']}"
+                ):
+                    st.session_state.selected_song = song["id"]
+                    st.rerun()
 # ============================================================
-# NAVIGATION
+# MEDIA FILE CARD
 # ============================================================
-
+def media_file_card(item):
+    name = get_file_name(item)
+    path = get_file_path(item)
+    folder = is_directory(item)
+    with st.container(border=True):
+        if folder:
+            st.markdown(f"📁 **{name}**")
+            if st.button(
+                f"Open folder: {name}",
+                key=f"open_{path}_{name}"
+            ):
+                st.session_state.browse_path = (
+                    path or name
+                )
+                st.rerun()
+        else:
+            extension = os.path.splitext(name)[1].lower()
+            st.markdown(f"🎵 **{name}**")
+            if extension in [
+                ".mp3",
+                ".m4a",
+                ".wav",
+                ".ogg",
+                ".flac",
+                ".aac"
+            ]:
+                if st.button(
+                    "▶ Play",
+                    key=f"play_{path}_{name}"
+                ):
+                    play_track(item)
+                    st.rerun()
+            elif extension in [
+                ".mp4",
+                ".mov",
+                ".webm",
+                ".m4v"
+            ]:
+                if path:
+                    st.video(
+                        media_download_url(
+                            path,
+                            compressed=False
+                        )
+                    )
+            else:
+                st.caption("Archive file")
+            if path:
+                st.link_button(
+                    "Download ↗",
+                    media_download_url(
+                        path,
+                        compressed=False
+                    )
+                )
+# ============================================================
+# SIDEBAR
+# ============================================================
 PAGES = [
     "Home",
     "Search",
@@ -362,197 +430,120 @@ PAGES = [
     "Eras",
     "Snippets",
     "Grails",
+    "Sessions",
     "Radio",
     "Charts",
-    "Group Buys",
     "Producers & Engineers",
+    "Recently Played",
     "Community",
     "API"
 ]
-
 with st.sidebar:
-
     st.markdown("## 🕊️ WRLD VAULT")
-
-    st.caption("THE ULTIMATE JUICE WRLD ARCHIVE")
-
+    st.caption("THE JUICE WRLD ARCHIVE")
     page = st.radio(
         "NAVIGATION",
         PAGES
     )
-
     st.divider()
-
-    st.caption("JUICE WRLD VAULT · V2")
-
-    st.caption("Powered by juicewrld.io")
-
-
+    st.caption("V2 · THE ARCHIVE")
+    st.caption("999 FOREVER")
+# ============================================================
+# HEADER
+# ============================================================
 st.markdown(
     '<div class="brand">🕊️ JUICE WRLD VAULT '
     '<span class="muted">V2</span></div>'
     '<div class="muted">The archive. The music. The legacy.</div>',
     unsafe_allow_html=True
 )
-
-
 # ============================================================
 # HOME
 # ============================================================
-
 if page == "Home":
-
-    stats = get_data("/stats")
-
     st.markdown("""
     <div class="hero">
         <span class="muted">WELCOME TO THE WRLD ARCHIVE</span>
         <h1>Keep the WRLD alive.</h1>
         <p class="muted">
-            Explore songs, releases, eras, credits and the music archive.
+            Discover music, albums, eras, sessions and unreleased history.
         </p>
     </div>
     """, unsafe_allow_html=True)
-
+    stats = unwrap(catalog_get("stats"))
     if isinstance(stats, dict):
-
         cols = st.columns(5)
-
-        metrics = [
-            ("Songs", "songs"),
-            ("Versions", "versions"),
-            ("Sessions", "studioSessions"),
-            ("Eras", "eras"),
-            ("People", "people")
-        ]
-
-        for column, (label, key) in zip(cols, metrics):
-
+        for column, label, key in zip(
+            cols,
+            ["Songs", "Versions", "Sessions", "Eras", "People"],
+            ["songs", "versions", "studioSessions", "eras", "people"]
+        ):
             column.metric(
                 label,
-                f"{stats.get(key, 0):,}"
+                stats.get(key, 0)
             )
-
-        st.divider()
-
-        cols = st.columns(4)
-
-        cols[0].metric("Releases", stats.get("projects", 0))
-        cols[1].metric("Playable entries", stats.get("playable", 0))
-        cols[2].metric("With lyrics", stats.get("withLyrics", 0))
-        cols[3].metric(
-            "Studio sessions",
-            stats.get("studioSessions", 0)
-        )
-
-        by_status = stats.get("byStatus") or {}
-
-        st.subheader("Catalogue breakdown")
-
-        status_cols = st.columns(5)
-
-        for column, status in zip(
-            status_cols,
-            ["released", "leaked", "unsurfaced", "session", "misc"]
-        ):
-
-            column.metric(
-                status.title(),
-                by_status.get(status, 0)
-            )
-
-    else:
-
-        st.warning("Statistics are temporarily unavailable.")
-
     st.divider()
-
-    st.subheader("Recently explored")
-
-    songs = get_data("/songs", {"limit": 5})
-
-    if isinstance(songs, list):
-
-        for song in songs:
-            show_song(song)
-
-
-# ============================================================
-# GLOBAL SEARCH
-# ============================================================
-
-elif page == "Search":
-
     st.subheader("🔎 Search the Vault")
-
     query = st.text_input(
-        "Search everything",
-        placeholder="Songs, albums, eras, producers..."
+        "Search",
+        placeholder="Search Juice WRLD songs..."
     )
-
     if query:
-
-        if len(query.strip()) < 2:
-
-            st.info("Enter at least two characters.")
-
-        else:
-
-            results = get_data(
-                "/search",
-                {"q": query, "limit": 30}
+        results = unwrap(
+            catalog_get(
+                "search",
+                {"q": query, "limit": 15}
             )
-
-            if isinstance(results, dict):
-
-                st.subheader("Songs")
-
-                for song in results.get("songs", []):
-                    show_song(song)
-
-                st.subheader("Eras")
-
-                for era in results.get("eras", []):
-
+        )
+        if isinstance(results, dict):
+            for song in results.get("songs", []):
+                song_card(song)
+    st.divider()
+    st.subheader("🎵 Explore the archive")
+    songs = as_list(
+        catalog_get("songs", {"limit": 8})
+    )
+    for song in songs:
+        song_card(song)
+# ============================================================
+# SEARCH
+# ============================================================
+elif page == "Search":
+    st.subheader("🔎 Global Search")
+    query = st.text_input(
+        "Search songs, albums, eras and people"
+    )
+    if query:
+        results = unwrap(
+            catalog_get(
+                "search",
+                {"q": query, "limit": 40}
+            )
+        )
+        if isinstance(results, dict):
+            for section in [
+                "songs",
+                "projects",
+                "eras",
+                "people"
+            ]:
+                st.subheader(section.title())
+                for item in results.get(section, []):
                     st.markdown(
-                        f"**{era.get('name', 'Unknown')}**"
+                        f"**{safe(item.get('title') or item.get('name'))}**"
                     )
-
-                    open_link(era.get("url"))
-
-                st.subheader("Releases")
-
-                for project in results.get("projects", []):
-
-                    st.markdown(
-                        f"**{project.get('name', 'Unknown')}**"
-                    )
-
-                    open_link(project.get("url"))
-
-                st.subheader("People")
-
-                for person in results.get("people", []):
-
-                    st.markdown(
-                        f"**{person.get('name', 'Unknown')}**"
-                    )
-
-                    open_link(person.get("url"))
-
-
+                    if item.get("url"):
+                        st.link_button(
+                            "Open ↗",
+                            item["url"]
+                        )
 # ============================================================
 # TRACKER
 # ============================================================
-
 elif page == "Tracker":
-
     st.subheader("🎵 Song Tracker")
-
     a, b, c = st.columns([2, 1, 1])
-
-    query = a.text_input("Search songs")
-
+    query = a.text_input("Song search")
     status = b.selectbox(
         "Status",
         [
@@ -564,485 +555,365 @@ elif page == "Tracker":
             "misc"
         ]
     )
-
     limit = c.selectbox(
-        "Results per page",
-        [25, 50, 100, 200],
-        index=1
+        "Results",
+        [25, 50, 100, 200]
     )
-
     offset = st.number_input(
-        "Page offset",
+        "Offset",
         min_value=0,
-        value=0,
-        step=limit
+        step=25
     )
-
     params = {
         "limit": limit,
         "offset": offset
     }
-
     if query:
         params["q"] = query
-
     if status != "All":
         params["status"] = status
-
-    songs = get_data("/songs", params)
-
-    if isinstance(songs, list):
-
-        st.caption(f"Showing {len(songs)} entries.")
-
-        for song in songs:
-
-            show_song(song)
-
-            with st.expander(
-                f"More information: {song.get('title', 'Song')}"
-            ):
-
-                show_song_details(song["id"])
-
-    else:
-
-        st.info("No songs found.")
-
-
+    songs = as_list(
+        catalog_get("songs", params)
+    )
+    st.caption(f"{len(songs)} results loaded")
+    for song in songs:
+        song_card(song)
+# ============================================================
+# SONG DETAILS
+# ============================================================
+if (
+    st.session_state.selected_song
+    and page == "Tracker"
+):
+    st.divider()
+    song_id = st.session_state.selected_song
+    details = unwrap(
+        catalog_get(f"songs/{song_id}")
+    )
+    if isinstance(details, dict):
+        st.subheader("Song details")
+        st.title(
+            safe(details.get("title"))
+        )
+        show_cover(
+            cover(details),
+            220
+        )
+        st.json(details)
 # ============================================================
 # DISCOGRAPHY
 # ============================================================
-
 elif page == "Discography":
-
     st.subheader("💿 Discography")
-
-    projects = get_data("/projects")
-
-    if isinstance(projects, list):
-
-        kind = st.selectbox(
-            "Release type",
-            ["All", "album", "ep", "single", "collection", "misc"]
+    projects = as_list(
+        catalog_get("projects")
+    )
+    for project in projects:
+        with st.container(border=True):
+            left, right = st.columns([1, 4])
+            with left:
+                show_cover(
+                    cover(project),
+                    160
+                )
+            with right:
+                st.markdown(
+                    f"### {safe(project.get('name'))}"
+                )
+                st.caption(
+                    f"{safe(project.get('kind'))} "
+                    f"· {safe(project.get('era'))}"
+                )
+                if project.get("slug"):
+                    if st.button(
+                        "View tracklist",
+                        key=f"project_{project['slug']}"
+                    ):
+                        st.session_state[
+                            "selected_project"
+                        ] = project["slug"]
+                if project.get("url"):
+                    st.link_button(
+                        "Open release ↗",
+                        project["url"]
+                    )
+    selected = st.session_state.get(
+        "selected_project"
+    )
+    if selected:
+        st.divider()
+        st.subheader("Tracklist")
+        details = unwrap(
+            catalog_get(f"projects/{selected}")
         )
-
-        if kind != "All":
-            projects = [
-                project for project in projects
-                if project.get("kind") == kind
-            ]
-
-        for project in projects:
-
-            with st.container(border=True):
-
-                left, right = st.columns([1, 4])
-
-                with left:
-                    show_cover(project.get("cover"), 160)
-
-                with right:
-
-                    st.markdown(
-                        f"### {project.get('name', 'Release')}"
-                    )
-
-                    released = project.get("released") or {}
-
-                    st.caption(
-                        f"{project.get('kind', 'Release').title()} "
-                        f"· {project.get('era') or 'Unknown era'} "
-                        f"· {released.get('text', 'Unknown date')}"
-                    )
-
-                    st.caption(
-                        f"{project.get('trackCount', 0)} tracks"
-                    )
-
-                    if project.get("slug"):
-
-                        with st.expander("View tracklist"):
-
-                            details = get_data(
-                                f"/projects/{project['slug']}"
-                            )
-
-                            if isinstance(details, dict):
-
-                                for index, track in enumerate(
-                                    details.get("tracks", []),
-                                    start=1
-                                ):
-
-                                    st.write(
-                                        f"{index}. "
-                                        f"{track.get('title', 'Unknown')}"
-                                    )
-
-                                    open_link(track.get("url"))
-
-
+        if isinstance(details, dict):
+            for index, track in enumerate(
+                details.get("tracks", []),
+                1
+            ):
+                st.write(
+                    f"{index}. {safe(track.get('title'))}"
+                )
 # ============================================================
 # ERAS
 # ============================================================
-
 elif page == "Eras":
-
     st.subheader("🕰️ Juice WRLD Eras")
-
-    eras = get_data("/eras")
-
-    if isinstance(eras, list):
-
-        for era in eras:
-
-            with st.container(border=True):
-
-                left, right = st.columns([1, 4])
-
-                with left:
-                    show_cover(era.get("cover"), 170)
-
-                with right:
-
-                    st.markdown(
-                        f"### {era.get('name', 'Unknown era')}"
-                    )
-
-                    st.caption(
-                        f"{era.get('code', '')} "
-                        f"· {era.get('start', {}).get('text', '')} "
-                        f"— {era.get('end', {}).get('text', '')}"
-                    )
-
-                    counts = era.get("counts") or {}
-
-                    st.write(
-                        f"Songs: {counts.get('songs', 0)} "
-                        f"· Versions: {counts.get('versions', 0)} "
-                        f"· Sessions: {counts.get('studioSessions', 0)}"
-                    )
-
-                    with st.expander("Explore era"):
-
-                        details = get_data(
-                            f"/eras/{era.get('code')}"
-                        )
-
-                        if isinstance(details, dict):
-
-                            st.write(
-                                details.get(
-                                    "description",
-                                    "No description available."
-                                )
-                            )
-
-                            for release in details.get("releases", []):
-
-                                st.write(
-                                    f"💿 {release.get('name', 'Release')}"
-                                )
-
-                                open_link(release.get("url"))
-
-
-# ============================================================
-# PRODUCERS AND ENGINEERS
-# ============================================================
-
-elif page == "Producers & Engineers":
-
-    st.subheader("🎚️ Producers & Engineers")
-
-    query = st.text_input(
-        "Find a producer or engineer",
-        placeholder="Search a name..."
+    eras = as_list(
+        catalog_get("eras")
     )
-
-    params = {"limit": 100}
-
-    if query:
-        params["q"] = query
-
-    people = get_data("/people", params)
-
-    if isinstance(people, list):
-
-        st.caption(f"{len(people)} people shown.")
-
-        for person in people:
-
-            with st.container(border=True):
-
-                st.markdown(
-                    f"### {person.get('name', 'Unknown')}"
-                )
-
-                a, b, c = st.columns(3)
-
-                a.metric("Songs", person.get("songs", 0))
-                b.metric("Produced", person.get("produced", 0))
-                c.metric("Engineered", person.get("engineered", 0))
-
-                with st.expander("View credits"):
-
-                    details = get_data(
-                        f"/people/{person.get('slug')}"
-                    )
-
-                    if isinstance(details, dict):
-
-                        for credit in details.get("credits", []):
-
-                            st.write(
-                                f"• {credit.get('title', 'Unknown')} "
-                                f"({', '.join(credit.get('roles', []))})"
-                            )
-
-                            open_link(credit.get("url"))
-
-
+    for era in eras:
+        with st.container(border=True):
+            show_cover(
+                cover(era),
+                150
+            )
+            st.markdown(
+                f"### {safe(era.get('name'))}"
+            )
+            st.caption(
+                f"Era code: {safe(era.get('code'))}"
+            )
+            code = era.get("code")
+            if code:
+                if st.button(
+                    "Explore era",
+                    key=f"era_{code}"
+                ):
+                    st.session_state["selected_era"] = code
+    selected = st.session_state.get("selected_era")
+    if selected:
+        st.divider()
+        details = unwrap(
+            catalog_get(f"eras/{selected}")
+        )
+        if isinstance(details, dict):
+            st.json(details)
+# ============================================================
+# MEDIA BROWSER
+# ============================================================
+elif page in [
+    "Snippets",
+    "Grails",
+    "Sessions"
+]:
+    section = {
+        "Snippets": "Snippets",
+        "Grails": "Grails",
+        "Sessions": "Session Edits"
+    }[page]
+    st.subheader(
+        {
+            "Snippets": "🎬 Snippets & Footage",
+            "Grails": "🏆 Grails Archive",
+            "Sessions": "🎙️ Studio Sessions"
+        }[page]
+    )
+    st.caption(
+        "Browse the Juice WRLD media archive."
+    )
+    if st.button("⬅ Back to root"):
+        st.session_state.browse_path = ""
+        st.rerun()
+    path = st.session_state.browse_path or section
+    st.markdown(
+        f"**Current folder:** `{path}`"
+    )
+    result = media_browse(path)
+    if result:
+        files = as_list(result)
+        if not files:
+            st.info(
+                "No files were returned. The folder may be empty "
+                "or the API may use a different response format."
+            )
+        else:
+            search = st.text_input(
+                "Filter files",
+                key=f"filter_{page}"
+            )
+            if search:
+                files = [
+                    item for item in files
+                    if search.lower() in get_file_name(item).lower()
+                ]
+            st.caption(
+                f"{len(files)} files and folders"
+            )
+            for item in files:
+                media_file_card(item)
 # ============================================================
 # RADIO
 # ============================================================
-
 elif page == "Radio":
-
-    st.subheader("📻 WRLD Radio")
-
+    st.subheader("📻 999 FM")
     st.markdown("""
     <div class="hero">
         <span class="muted">JUICE WRLD RADIO</span>
-        <h1>Let the music play.</h1>
+        <h1>Let the WRLD play.</h1>
         <p class="muted">
-            Discover a random entry from the catalogue.
+            Random discoveries from the archive.
         </p>
     </div>
     """, unsafe_allow_html=True)
-
-    if "radio_song" not in st.session_state:
-        st.session_state.radio_song = None
-
-    if st.button("🎲 Shuffle a song"):
-
-        songs = get_data(
-            "/songs",
-            {"limit": 200}
+    if st.button("🎲 Shuffle random track"):
+        result = unwrap(
+            media_get("radio/random/")
         )
-
-        if isinstance(songs, list) and songs:
-
-            st.session_state.radio_song = random.choice(songs)
-
-    song = st.session_state.radio_song
-
-    if song:
-
-        show_song(song)
-
-        st.info(
-            "The catalogue API does not expose downloadable audio. "
-            "Use the song page to listen."
+        if isinstance(result, dict):
+            track = result
+            st.session_state.radio_track = track
+            if get_file_path(track):
+                play_track(track)
+            st.rerun()
+        else:
+            st.error(
+                "Radio returned an unexpected response."
+            )
+    track = st.session_state.radio_track
+    if track:
+        st.subheader(
+            safe(
+                track.get("name")
+                or track.get("title")
+            )
         )
-
+        path = get_file_path(track)
+        if path:
+            st.audio(
+                media_download_url(path),
+                format="audio/mpeg"
+            )
+        else:
+            st.json(track)
     else:
-
-        st.info("Press shuffle to discover a song.")
-
-
-# ============================================================
-# SNIPPETS
-# ============================================================
-
-elif page == "Snippets":
-
-    st.subheader("🎬 Snippets & Footage")
-
-    st.info(
-        "This section needs the Juice WRLD media archive connection. "
-        "The catalogue API does not provide snippet video files."
-    )
-
-    st.markdown(
-        "Media source: `https://juicewrldapi.com`"
-    )
-
-
-# ============================================================
-# GRAILS
-# ============================================================
-
-elif page == "Grails":
-
-    st.subheader("🏆 Grails")
-
-    st.info(
-        "Grails need a dedicated dataset or media API route. "
-        "No grail endpoint is exposed by the catalogue API."
-    )
-
-
+        st.info(
+            "Press shuffle to discover a random track."
+        )
 # ============================================================
 # CHARTS
 # ============================================================
-
 elif page == "Charts":
-
-    st.subheader("📊 Vault Charts")
-
-    stats = get_data("/stats")
-
-    if isinstance(stats, dict):
-
-        by_status = stats.get("byStatus") or {}
-
-        st.metric(
-            "Total versions",
-            stats.get("versions", 0)
-        )
-
-        st.metric(
-            "Released songs",
-            by_status.get("released", 0)
-        )
-
-        st.metric(
-            "Leaked songs",
-            by_status.get("leaked", 0)
-        )
-
-        st.metric(
-            "Unsurfaced songs",
-            by_status.get("unsurfaced", 0)
-        )
-
-        st.metric(
-            "Catalogue plays",
-            (stats.get("plays") or {}).get("site", 0)
-        )
-
-
-# ============================================================
-# GROUP BUYS
-# ============================================================
-
-elif page == "Group Buys":
-
-    st.subheader("💰 Group Buys")
-
-    stats = get_data("/stats")
-
-    if isinstance(stats, dict):
-
-        buys = stats.get("groupBuys") or {}
-
-        a, b, c, d = st.columns(4)
-
-        a.metric("Total", buys.get("total", 0))
-        b.metric("Finished", buys.get("finished", 0))
-        c.metric("Failed", buys.get("failed", 0))
-        d.metric("Unknown", buys.get("unknown", 0))
-
-    st.info(
-        "Detailed group-buy listings require a separate group-buy "
-        "dataset. These statistics come from the catalogue API."
+    st.subheader("📊 Vault Statistics")
+    stats = unwrap(
+        catalog_get("stats")
     )
-
-
+    if isinstance(stats, dict):
+        st.json(stats)
+    else:
+        st.info("Statistics unavailable.")
+# ============================================================
+# PRODUCERS / ENGINEERS
+# ============================================================
+elif page == "Producers & Engineers":
+    st.subheader("🎚️ Producers & Engineers")
+    query = st.text_input(
+        "Find a person"
+    )
+    params = {"limit": 100}
+    if query:
+        params["q"] = query
+    people = as_list(
+        catalog_get("people", params)
+    )
+    for person in people:
+        with st.container(border=True):
+            st.markdown(
+                f"### {safe(person.get('name'))}"
+            )
+            st.caption(
+                f"Songs: {person.get('songs', 0)}"
+            )
+            slug = person.get("slug")
+            if slug:
+                if st.button(
+                    "View profile",
+                    key=f"person_{slug}"
+                ):
+                    st.session_state["selected_person"] = slug
+    selected = st.session_state.get("selected_person")
+    if selected:
+        details = unwrap(
+            catalog_get(f"people/{selected}")
+        )
+        if isinstance(details, dict):
+            st.json(details)
+# ============================================================
+# RECENTLY PLAYED
+# ============================================================
+elif page == "Recently Played":
+    st.subheader("🕘 Recently Played")
+    for track in st.session_state.recently_played:
+        name = get_file_name(track)
+        st.write(f"🎵 {name}")
+        if st.button(
+            f"Play {name}",
+            key=f"recent_{name}_{random.random()}"
+        ):
+            play_track(track)
+            st.rerun()
 # ============================================================
 # COMMUNITY
 # ============================================================
-
 elif page == "Community":
-
     st.subheader("💬 Vault Community")
-
     st.info(
-        "Community posts, comments and suggestions require a database "
-        "and backend. The public catalogue API is read-only."
+        "Community posts, accounts, comments and suggestions "
+        "require a dedicated database and backend."
     )
-
-
 # ============================================================
 # API
 # ============================================================
-
 elif page == "API":
-
     st.subheader("🔌 Developer API")
-
-    st.markdown("""
-    Connect your Discord bot or another application to the
-    Juice WRLD catalogue.
-    """)
-
-    st.markdown("### Base URL")
-
-    st.code("https://juicewrld.io/api/v1")
-
-    st.markdown("### Available endpoints")
-
+    st.markdown("### Catalogue API")
+    st.code(CATALOG_API)
+    st.markdown("### Media API")
+    st.code(MEDIA_API)
+    st.markdown("### Catalogue endpoints")
     st.code("""
 GET /songs
 GET /songs/{id}
-
 GET /eras
 GET /eras/{code}
-
 GET /projects
 GET /projects/{slug}
-
 GET /people
 GET /people/{slug}
-
 GET /search?q=lucid
-
 GET /stats
 """, language="http")
-
-    st.markdown("### Example Python request")
-
+    st.markdown("### Media endpoints")
     st.code("""
-import requests
-
-API = "https://juicewrld.io/api/v1"
-
-response = requests.get(
-    f"{API}/search",
-    params={"q": "Lucid Dreams", "limit": 10}
-)
-
-data = response.json()["data"]
-
-for song in data["songs"]:
-    print(song["title"], song["url"])
-""", language="python")
-
-    st.markdown("### API documentation")
-
+GET /files/browse/?path=Snippets&channel=comp
+GET /files/download/?path=FILE_PATH&channel=comp
+GET /files/download-compressed/?path=FILE_PATH&channel=comp
+GET /radio/random/
+""", language="http")
     st.link_button(
-        "Open official API documentation ↗",
+        "Open Juice WRLD API ↗",
+        "https://juicewrldapi.com/"
+    )
+    st.link_button(
+        "Open Catalogue Documentation ↗",
         "https://juicewrld.io/developers"
     )
-
-    st.caption(
-        "Catalogue data provided by juicewrld.io. "
-        "This is a public read-only API."
-    )
-
-
+# ============================================================
+# PLAYER AREA
+# ============================================================
+player()
 # ============================================================
 # FOOTER
 # ============================================================
-
 st.divider()
-
 st.markdown("""
-<div style="text-align:center;color:#64748b;padding:20px;">
-    🕊️ JUICE WRLD VAULT V2<br>
+<div style="
+    text-align:center;
+    color:#64748b;
+    padding:20px;
+">
+    🕊️ JUICE WRLD VAULT<br>
     <small>Preserving the WRLD, one track at a time.</small><br>
-    <small>Catalogue data: juicewrld.io</small>
+    <small>V2 · 999 FOREVER</small>
 </div>
 """, unsafe_allow_html=True)
