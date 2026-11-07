@@ -1,64 +1,6 @@
 import streamlit as st
-import aiohttp
-import asyncio
+import requests
 import urllib.parse
-import threading
-import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-# ==========================================
-# 1. THE API (Backend)
-# ==========================================
-api = FastAPI()
-
-api.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-SOURCE_API = "https://juicewrldapi.com/juicewrld"
-
-@api.get("/api/search")
-async def api_search(q: str, limit: int = 10):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{SOURCE_API}/songs/", params={"search": q}) as resp:
-            if resp.status != 200: return {"error": "Source API failed"}
-            data = await resp.json()
-            results = data.get("results", [])[:limit]
-            
-            clean = []
-            for song in results:
-                path = song.get("path", "")
-                clean.append({
-                    "title": song.get("name"),
-                    "era": song.get("era", {}).get("name"),
-                    "cover": f"https://juicewrldapi.com{song.get('image_url')}" if song.get("image_url") else None,
-                    "stream_url": f"https://juicewrldapi.com/juicewrld/files/download-compressed/?path={path}",
-                })
-            return {"songs": clean}
-
-@api.get("/api/latest")
-async def api_latest(limit: int = 30):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{SOURCE_API}/songs/", params={"sort": "date_leaked", "order": "desc", "limit": limit}) as resp:
-            if resp.status != 200: return {"error": "Source API failed"}
-            data = await resp.json()
-            return {"songs": data.get("results", [])}
-
-# Start FastAPI in a background thread so Streamlit can run at the same time
-def run_api():
-    uvicorn.run(api, host="0.0.0.0", port=8000)
-
-if "api_started" not in st.session_state:
-    st.session_state["api_started"] = True
-    threading.Thread(target=run_api, daemon=True).start()
-
-# ==========================================
-# 2. THE WEBSITE (Frontend)
-# ==========================================
 
 st.set_page_config(page_title="Juice WRLD Vault", page_icon="🕊️", layout="wide")
 
@@ -88,26 +30,43 @@ st.markdown("""
 st.markdown('<a href="https://discord.gg/YOUR_INVITE_LINK" target="_blank" class="discord-btn">Join our Discord</a>', unsafe_allow_html=True)
 st.markdown("<h1 style='text-align: center;'>🕊️ Juice WRLD Vault</h1>", unsafe_allow_html=True)
 
-API_URL = "http://127.0.0.1:8000" # Points to the API running in the same file
+API_URL = "https://juicewrldapi.com"
 
-async def fetch_api(endpoint: str):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"{API_URL}{endpoint}") as resp:
-            if resp.status == 200:
-                return await resp.json()
-            return None
+# We use st.cache_data so it doesn't re-fetch the same data 100 times
+@st.cache_data(ttl=300)
+def fetch_songs(query: str):
+    try:
+        res = requests.get(f"{API_URL}/juicewrld/songs/", params={"search": query})
+        if res.status_code == 200:
+            return res.json().get("results", [])
+    except Exception:
+        pass
+    return []
+
+@st.cache_data(ttl=300)
+def fetch_latest():
+    try:
+        res = requests.get(f"{API_URL}/juicewrld/songs/", params={"sort": "date_leaked", "order": "desc", "limit": 30})
+        if res.status_code == 200:
+            return res.json().get("results", [])
+    except Exception:
+        pass
+    return []
 
 def render_song_card(song):
     with st.container():
-        img_url = song.get("cover") or song.get("image_url")
-        if img_url and img_url.startswith("/"): img_url = f"https://juicewrldapi.com{img_url}"
-        if img_url: st.image(img_url, use_column_width=True)
+        img_url = song.get("image_url")
+        if img_url:
+            if img_url.startswith("/"): img_url = f"https://juicewrldapi.com{img_url}"
+            st.image(img_url, use_column_width=True)
         
-        st.markdown(f"### {song.get('title', song.get('name', 'Unknown'))}")
+        st.markdown(f"### {song.get('name', 'Unknown')}")
         st.caption(f"Era: {song.get('era', {}).get('name', 'Unknown')} | {song.get('length', '')}")
         
-        if song.get("stream_url"):
-            st.audio(song["stream_url"])
+        path = song.get("path", "")
+        if path:
+            stream_url = f"https://juicewrldapi.com/juicewrld/files/download-compressed/?path={path}"
+            st.audio(stream_url)
 
 tab_search, tab_timeline = st.tabs(["Search Vault", "Latest Surfaces"])
 
@@ -115,26 +74,18 @@ with tab_search:
     query = st.text_input("", placeholder="Search...", label_visibility="collapsed")
     if query:
         with st.spinner("Searching..."):
-            data = asyncio.run(fetch_api(f"/api/search?q={urllib.parse.quote(query)}"))
-            if data and data.get("songs"):
+            results = fetch_songs(query)
+            if results:
                 cols = st.columns(3)
-                for idx, song in enumerate(data["songs"][:12]):
+                for idx, song in enumerate(results[:12]):
                     with cols[idx % 3]: render_song_card(song)
             else: st.error("No songs found.")
 
 with tab_timeline:
     with st.spinner("Loading timeline..."):
-        data = asyncio.run(fetch_api("/api/latest"))
-        if data and data.get("songs"):
+        latest = fetch_latest()
+        if latest:
             cols = st.columns(2)
-            for idx, song in enumerate(data["songs"]):
-                with cols[idx % 2]:
-                    # We use the raw format for the timeline
-                    with st.container():
-                        img_url = song.get("image_url")
-                        if img_url: st.image(f"https://juicewrldapi.com{img_url}", use_column_width=True)
-                        st.markdown(f"### {song.get('name', 'Unknown')}")
-                        st.caption(f"Era: {song.get('era', {}).get('name', 'Unknown')}")
-                        if song.get("path"):
-                            st.audio(f"https://juicewrldapi.com/juicewrld/files/download-compressed/?path={song['path']}")
+            for idx, song in enumerate(latest):
+                with cols[idx % 2]: render_song_card(song)
         else: st.error("Failed to load timeline.")
