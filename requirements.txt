@@ -1,4 +1,2 @@
 streamlit
-aiohttp
-fastapi
-uvicorn
+requests
