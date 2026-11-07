@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Juice WRLD Vault", page_icon="🕊️", layout="wide", initial_sidebar_state="collapsed")
 
@@ -15,7 +14,7 @@ st.markdown("""
     
     /* Hide Streamlit Junk */
     #MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;}
-    .block-container { padding-top: 2rem; padding-bottom: 120px; }
+    .block-container { padding-top: 2rem; padding-bottom: 50px; }
 
     /* Top Nav Bar */
     .nav-bar {
@@ -34,15 +33,6 @@ st.markdown("""
     }
     .hero-title { font-size: 36px; font-weight: 800; color: white; margin: 0; }
     .hero-subtitle { color: #9ca3af; font-size: 16px; margin-top: 5px; }
-
-    /* Category Pills */
-    .pill-container { display: flex; gap: 10px; margin-bottom: 20px; }
-    .pill {
-        padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;
-        border: 1px solid #2a2e39; color: #9ca3af; cursor: pointer; transition: 0.2s;
-    }
-    .pill:hover { background: #1a1d24; color: white; }
-    .pill-active { background: #3b82f6; color: white; border-color: #3b82f6; }
 
     /* Song Cards */
     .song-card {
@@ -63,7 +53,7 @@ st.markdown("""
     .badge-unsurfaced { background-color: rgba(59, 130, 246, 0.9); color: white;}
     .badge-session { background-color: rgba(139, 92, 246, 0.9); color: white;}
 
-    /* Inputs */
+    /* Inputs & Buttons */
     .stTextInput > div > div > input {
         background: rgba(26, 29, 36, 0.8) !important; border: 1px solid #3b404d !important;
         color: white !important; border-radius: 12px !important; padding: 12px 20px !important;
@@ -81,11 +71,9 @@ st.markdown("""
 API_URL = "https://juicewrldapi.com"
 
 @st.cache_data(ttl=300)
-def fetch_songs(query="", category=""):
+def fetch_songs(query=""):
     params = {"limit": 24}
     if query: params["search"] = query
-    if category and category != "All": params["category"] = category
-    
     try:
         res = requests.get(f"{API_URL}/juicewrld/songs/", params=params)
         if res.status_code == 200:
@@ -114,7 +102,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --- HERO SECTION (Song of the Hour) ---
+# --- HERO SECTION ---
 random_song = fetch_random()
 if random_song:
     st.markdown(f"""
@@ -124,30 +112,13 @@ if random_song:
             <h1 class="hero-title">{random_song.get('name', 'Unknown')}</h1>
             <p class="hero-subtitle">{random_song.get('era', {}).get('name', 'Unknown')} • {random_song.get('length', '')}</p>
         </div>
-        <div style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(45deg, #3b82f6, #8b5cf6); display: flex; justify-content: center; align-items: center; box-shadow: 0 0 30px rgba(59,130,246,0.5);">
-            <span style="font-size: 40px;">▶</span>
-        </div>
     </div>
     """, unsafe_allow_html=True)
 
-# --- SEARCH & FILTERS ---
-col1, col2 = st.columns([3, 1])
-with col1:
-    query = st.text_input("", placeholder="Search the vault...", label_visibility="collapsed")
-with col2:
-    if st.button("Search"):
-        st.cache_data.clear()
-
-# Category Pills
-st.markdown("""
-<div class="pill-container">
-    <div class="pill pill-active">All</div>
-    <div class="pill">Unreleased</div>
-    <div class="pill">Released</div>
-    <div class="pill">Unsurfaced</div>
-    <div class="pill">Sessions</div>
-</div>
-""", unsafe_allow_html=True)
+# --- SEARCH ---
+query = st.text_input("Search the vault...", placeholder="e.g. Lucid Dreams", label_visibility="visible")
+if st.button("Search"):
+    st.cache_data.clear()
 
 # --- SONG GRID ---
 songs = fetch_songs(query)
@@ -182,26 +153,3 @@ else:
             </div>
             """
             st.markdown(html_card, unsafe_allow_html=True)
-
-# --- FIXED BOTTOM PLAYER (Using HTML/JS for persistence) ---
-components.html(
-    """
-    <style>
-        body { margin: 0; background: transparent; }
-        .player-bar {
-            position: fixed; bottom: 0; left: 0; width: 100vw; height: 80px;
-            background: rgba(21, 23, 30, 0.95); backdrop-filter: blur(10px);
-            border-top: 1px solid #2a2e39; display: flex; align-items: center;
-            padding: 0 30px; box-sizing: border-box; z-index: 9999;
-        }
-        .player-text { color: #9ca3af; font-size: 14px; font-family: sans-serif; }
-    </style>
-    <div class="player-bar">
-        <div style="display: flex; align-items: center; gap: 20px; width: 100%;">
-            <div style="color: white; font-weight: bold; font-family: sans-serif;">Now Playing:</div>
-            <div class="player-text">Click a song to play (Audio integration coming soon)</div>
-        </div>
-    </div>
-    """,
-    height=80,
-)
