@@ -3,142 +3,155 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Juice WRLD Vault</title>
+    <title>Bot Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
         body { background-color: #0d0f12; color: white; font-family: 'Inter', sans-serif; }
-        .card { background-color: #1a1d24; border: 1px solid #2a2e39; border-radius: 12px; }
-        .live-dot { height: 8px; width: 8px; background-color: #10b981; border-radius: 50%; display: inline-block; }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0d0f12; }
-        ::-webkit-scrollbar-thumb { background: #2a2e39; border-radius: 4px; }
+        .card { background: #15171e; border-radius: 16px; border: 1px solid #2a2e39; }
+        .purple-btn { background: #8b5cf6; color: white; transition: 0.2s; }
+        .purple-btn:hover { background: #7c3aed; }
+        .red-btn { background: #ef4444; color: white; transition: 0.2s; }
+        .red-btn:hover { background: #dc2626; }
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; }
+        .progress-bar { height: 8px; border-radius: 4px; background: #2a2e39; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
     </style>
 </head>
-<body class="p-6 pb-24">
+<body class="p-6">
 
-    <div class="max-w-7xl mx-auto flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
-        <h1 class="text-2xl font-extrabold flex items-center gap-2">🕊️ Juice WRLD Vault</h1>
-        <div class="flex gap-4 text-sm text-gray-400 font-semibold">
-            <span>SONGS: 3,137</span>
-            <span class="flex items-center gap-2"><span class="live-dot"></span> 37 Online</span>
+    <!-- Top Nav -->
+    <div class="max-w-5xl mx-auto flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
+        <h1 class="text-2xl font-extrabold flex items-center gap-2">🤖 Bot Dashboard</h1>
+        <div class="flex gap-4 text-sm font-semibold">
+            <span class="text-purple-400">Overview</span>
         </div>
     </div>
 
-    <div class="max-w-7xl mx-auto mb-6">
-        <input type="text" id="search-bar" placeholder="Search songs..." class="w-full bg-[#1a1d24] border border-gray-700 text-white p-3 rounded-lg focus:outline-none focus:border-blue-500 transition-colors">
-    </div>
-
-    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="md:col-span-2 space-y-6">
+    <!-- Main Content -->
+    <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Server Stats (Left) -->
+        <div class="col-span-2 space-y-6">
             <div class="card p-6">
-                <h2 class="text-xl font-bold mb-6">Latest</h2>
-                <div id="song-list" class="space-y-2">
-                    <p class="text-gray-500">Loading songs...</p>
+                <h2 class="text-xl font-bold mb-4">Server Status</h2>
+                <div class="flex items-center gap-3 mb-6">
+                    <div id="status-dot" class="status-dot bg-yellow-500"></div>
+                    <span id="status-text" class="text-yellow-500 font-bold">Checking...</span>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm mb-1"><span class="text-gray-400">CPU</span> <span id="cpu-text">0%</span></div>
+                        <div class="progress-bar"><div id="cpu-bar" class="progress-fill bg-blue-500" style="width: 0%"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-1"><span class="text-gray-400">RAM</span> <span id="ram-text">0%</span></div>
+                        <div class="progress-bar"><div id="ram-bar" class="progress-fill bg-purple-500" style="width: 0%"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm mb-1"><span class="text-gray-400">Disk</span> <span id="disk-text">0%</span></div>
+                        <div class="progress-bar"><div id="disk-bar" class="progress-fill bg-green-500" style="width: 0%"></div></div>
+                    </div>
                 </div>
             </div>
+
+            <!-- GitHub Integration -->
+            <div class="card p-6">
+                <h2 class="text-xl font-bold mb-4">GitHub Integration</h2>
+                <p class="text-gray-400 text-sm mb-4">Pull the latest code from your repository to update the bot.</p>
+                
+                <div id="github-status" class="mb-4 text-sm font-bold text-yellow-400">Checking connection...</div>
+                
+                <button onclick="pullCode()" class="purple-btn px-6 py-3 rounded-lg font-bold w-full">Pull Latest Code</button>
+            </div>
         </div>
 
+        <!-- Quick Actions (Right) -->
         <div class="space-y-6">
-            <div class="card p-6 bg-gradient-to-br from-blue-900/20 to-transparent border-blue-900/50">
-                <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Song of the hour</h3>
-                <h2 id="soth-title" class="text-2xl font-extrabold mb-1">Loading...</h2>
-                <p id="soth-info" class="text-sm text-gray-400">Fetching data...</p>
+            <div class="card p-6">
+                <h2 class="text-lg font-bold mb-4">Bot Controls</h2>
+                <button onclick="restartBot()" class="purple-btn px-4 py-3 rounded-lg font-bold w-full mb-3">Restart Bot</button>
+                <button onclick="stopBot()" class="red-btn px-4 py-3 rounded-lg font-bold w-full">Stop Bot</button>
             </div>
-        </div>
-    </div>
-
-    <div id="player-container" class="fixed bottom-0 left-0 w-full bg-[#1a1d24] border-t border-gray-700 p-4 shadow-2xl transform translate-y-full transition-transform duration-300">
-        <div class="max-w-7xl mx-auto flex items-center gap-4">
-            <img id="player-cover" src="" class="w-12 h-12 rounded object-cover">
-            <div class="flex-1">
-                <p id="player-title" class="font-bold text-white text-sm">Not Playing</p>
-                <p id="player-era" class="text-xs text-gray-400"></p>
-            </div>
-            <audio id="audio-player" controls class="h-10"></audio>
-            <button onclick="closePlayer()" class="text-gray-400 hover:text-white px-2">✕</button>
         </div>
     </div>
 
     <script>
-        let allSongs = []; 
-
-        // 1. Load Songs from YOUR API
-        async function loadSongs() {
+        // Live Stats
+        async function fetchStats() {
             try {
-                const response = await fetch(`/api/latest`);
-                const data = await response.json();
-                allSongs = data.songs;
-                renderSongs(allSongs);
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                
+                // Update Bars
+                document.getElementById('cpu-text').innerText = data.cpu + "%";
+                document.getElementById('cpu-bar').style.width = data.cpu + "%";
+                
+                document.getElementById('ram-text').innerText = data.ram + "%";
+                document.getElementById('ram-bar').style.width = data.ram + "%";
+                
+                document.getElementById('disk-text').innerText = data.disk + "%";
+                document.getElementById('disk-bar').style.width = data.disk + "%";
+
+                // Update Bot Status
+                const dot = document.getElementById('status-dot');
+                const text = document.getElementById('status-text');
+                
+                if (data.bot_running) {
+                    dot.className = "status-dot bg-green-500";
+                    text.innerText = "Bot is Online";
+                    text.className = "text-green-500 font-bold";
+                } else {
+                    dot.className = "status-dot bg-red-500";
+                    text.innerText = "Bot is Offline";
+                    text.className = "text-red-500 font-bold";
+                }
             } catch (e) {
-                document.getElementById('song-list').innerHTML = "<p class='text-red-500'>Failed to load songs.</p>";
+                console.error("Failed to fetch stats", e);
             }
         }
 
-        // 2. Render Songs
-        function renderSongs(songs) {
-            const container = document.getElementById('song-list');
-            container.innerHTML = ''; 
-
-            songs.forEach(song => {
-                let img = song.image_url ? `https://juicewrldapi.com${song.image_url}` : "https://juicewrldapi.com/default.png";
-                let badgeColor = "bg-orange-500 text-black"; 
-                if (song.leak_type === "Released") badgeColor = "bg-green-500 text-black";
-                if (song.leak_type === "Unsurfaced") badgeColor = "bg-blue-500 text-white";
-
-                const row = `
-                    <div onclick="playSong('${song.name}', '${song.era.name}', '${song.path}', '${img}')" class="flex items-center gap-4 p-3 hover:bg-white/5 rounded-lg transition-colors cursor-pointer group border-b border-gray-800/50">
-                        <img src="${img}" class="w-12 h-12 rounded object-cover">
-                        <div class="flex-1">
-                            <p class="font-bold text-white group-hover:text-blue-400 transition-colors">${song.name}</p>
-                            <p class="text-xs text-gray-500">${song.era.name} • ${song.length}</p>
-                        </div>
-                        <span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${badgeColor}">${song.leak_type || 'Unknown'}</span>
-                    </div>
-                `;
-                container.innerHTML += row;
-            });
+        // Bot Controls
+        async function restartBot() {
+            await fetch('/api/bot/restart', { method: 'POST' });
+            alert("Restarting Bot...");
+            fetchStats();
         }
 
-        // 3. Play Song
-        function playSong(title, era, path, cover) {
-            const playerContainer = document.getElementById('player-container');
-            const audio = document.getElementById('audio-player');
+        async function stopBot() {
+            await fetch('/api/bot/stop', { method: 'POST' });
+            alert("Stopping Bot...");
+            fetchStats();
+        }
+
+        // GitHub
+        async function checkGithub() {
+            const res = await fetch('/api/github/status');
+            const data = await res.json();
+            const statusEl = document.getElementById('github-status');
             
-            document.getElementById('player-title').innerText = title;
-            document.getElementById('player-era').innerText = era;
-            document.getElementById('player-cover').src = cover;
-            
-            audio.src = `https://juicewrldapi.com/juicewrld/files/download-compressed/?path=${path}`;
-            
-            playerContainer.classList.remove('translate-y-full');
-            audio.play();
+            if (data.status === 'Connected') {
+                statusEl.innerText = `Connected to ${data.user}/${data.repo}`;
+                statusEl.className = "mb-4 text-sm font-bold text-green-400";
+            } else {
+                statusEl.innerText = "Error: Check GitHub Token in dashboard.py";
+                statusEl.className = "mb-4 text-sm font-bold text-red-400";
+            }
         }
 
-        function closePlayer() {
-            document.getElementById('audio-player').pause();
-            document.getElementById('player-container').classList.add('translate-y-full');
+        async function pullCode() {
+            const res = await fetch('/api/github/pull', { method: 'POST' });
+            const data = await res.json();
+            alert(data.message);
         }
 
-        // 4. Search
-        document.getElementById('search-bar').addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            const filtered = allSongs.filter(song => song.name.toLowerCase().includes(query));
-            renderSongs(filtered);
-        });
-
-        // 5. Song of the Hour
-        async function loadSongOfTheHour() {
-            try {
-                const res = await fetch(`/api/random`);
-                const data = await res.json();
-                document.getElementById('soth-title').innerText = data.song.name;
-                document.getElementById('soth-info').innerText = `${data.song.era.name} • ${data.song.length}`;
-            } catch (e) {}
-        }
-
-        loadSongs();
-        loadSongOfTheHour();
+        // Run on Load
+        fetchStats();
+        checkGithub();
+        
+        // Update every 3 seconds
+        setInterval(fetchStats, 3000);
     </script>
 </body>
 </html>
